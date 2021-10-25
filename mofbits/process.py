@@ -1,8 +1,9 @@
 import re
-from typing import Tuple, List, Union, Set
+from typing import Tuple, List, Union, Set, Callable
 from rdkit import Chem
 from rdkit.DataStructs.cDataStructs import ExplicitBitVect
 import tqdm
+import warnings
 
 
 metals = open('mofbits/metals.txt').read().splitlines()
@@ -94,14 +95,32 @@ def metal_node_type_fp(s: str):
     # return fp_smiles(s.replace('[M]', '[Zn]').replace('$', 'Cl'), maxPath=3)
     return metal_node_fp(s.replace('[M]', '[Zn]').replace('$', 'Cl'))
 
+
 def collect_set(list_of_sets) -> List[str]:
     return list(set().union(*[l for l in list_of_sets if l is not None]))
 
 
-def one_hot_fp(s: str, unique: List[str]):
-    fp = ExplicitBitVect(len(unique))
-    fp.SetBit(unique.index(s))
-    return fp
+# def one_hot_fp(s: str, unique: List[str]) -> ExplicitBitVect:
+#     fp = ExplicitBitVect(len(unique))
+#     fp.SetBit(unique.index(s))
+#     return fp
+
+
+def union_bv(list_of_bv: List[ExplicitBitVect], bv=None) -> ExplicitBitVect:
+    if len(list_of_bv) == 0:
+        return bv
+    if bv is None:
+        bv = list_of_bv.pop()
+        return union_bv(list_of_bv, bv)
+    else:
+        new_bv = list_of_bv.pop()
+        return union_bv(list_of_bv, bv | new_bv)
+
+
+def collective_fp(list_to_fp: Set[str], fingerprint_fn: Callable, **kwargs) -> ExplicitBitVect:
+    return union_bv(
+        [fingerprint_fn(i, **kwargs) for i in list_to_fp]
+    )
 
 
 class MOFBits:
@@ -112,15 +131,47 @@ class MOFBits:
         'metal nodes': metal_node_fp,
         'organic linkers': fp_smiles
     }
+    # _ohe_func = one_hot_fp
 
     def __init__(self, list_of_mofids: List[str]):
         processed_mofids = [process_mofid(i) for i in tqdm.tqdm(list_of_mofids, desc='Processing MOFids', unit='ids')]
         self._keys = collect_set([i.keys() for i in processed_mofids])  # TODO: is this ordered?
         self._uniques = {k: collect_set([i[k] for i in processed_mofids]) for k in self._keys if k not in self._custom_fingerprint_funcs.keys()}
 
-        self._cache = dict(zip(list_of_mofids), )
+        # self._cache = dict(zip(list_of_mofids, [self._to_bitvec()))
+
+    def _ohe(self, s: str, feature_name: str) -> ExplicitBitVect:
+        fp = ExplicitBitVect(len(self._uniques[feature_name]))
+        try:
+            fp.SetBit(self._uniques[feature_name].index(s))
+        except ValueError:
+            warnings.warn('The string %s has not been seen in the provided dataset under the \"%s\" category' % (s, feature_name))
+        return fp
+
+    def _set_featurize(self, x: Set[str], feature_name: str) -> ExplicitBitVect:
+        if feature_name in self._custom_fingerprint_funcs:
+            return collective_fp(x, self._custom_fingerprint_funcs[feature_name])
+        else:
+            return collective_fp(x, self._ohe, feature_name=feature_name)
+
+    def _get_bvs(self, x: dict) -> List[ExplicitBitVect]:
+        return [self._set_featurize(v, k) for k, v in x.items()]
+
+    def get_bvs_from_mofid(self, mofid: str):
+        return self._get_bvs(process_mofid(mofid))
+
+    def get_full_bv(self, mofid: str):
+        return self._to_bitvec(process_mofid(mofid))
 
     def _to_bitvec(self, x: dict):
-        list_of_fp = []
-        for k, v in x.items():
-            if k in
+        list_of_bvs = self._get_bvs(x)
+        # concatenate bitvecs together
+        lengths = [len(i) for i in list_of_bvs]
+        result = ExplicitBitVect(sum(lengths))
+        for i, bv in enumerate(list_of_bvs):
+            if i == 0:
+                offset = 0
+            else:
+                offset = lengths[i-1]
+            result.SetBitsFromList([j+offset for j in bv.GetOnBits()])
+        return result
