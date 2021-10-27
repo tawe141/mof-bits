@@ -4,9 +4,12 @@ from rdkit import Chem
 from rdkit.DataStructs.cDataStructs import ExplicitBitVect
 import tqdm
 import warnings
+import os
 
 
-metals = open('mofbits/metals.txt').read().splitlines()
+#probably not the right way to do this, but...
+_script_dir = os.path.dirname(__file__)
+metals = open(_script_dir+'/metals.txt').read().splitlines()
 halides = ['F', 'Cl', 'Br', 'I']
 
 
