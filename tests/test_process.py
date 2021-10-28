@@ -8,6 +8,11 @@ def hkust():
 
 
 @pytest.fixture
+def null_mofid():
+    return "* MOFid-v1.NA.NAno_mof"
+
+
+@pytest.fixture
 def list_of_mofids():
     return [
         "[Cu][Cu].[O-]C(=O)c1cc(cc(c1)C(=O)[O-])C(=O)[O-] MOFid-v1.tbo.cat0",  # Cu-BTC
@@ -75,3 +80,17 @@ def test_get_bvs_from_mofid(featurizer, hkust):
 def test_get_full_bv(featurizer, hkust):
     result = featurizer.get_full_bv(hkust)
     assert len(result) == 3*2048+2+4
+
+
+def test_null_mofid(featurizer, null_mofid):
+    result = featurizer.get_full_bv(null_mofid)
+    assert len(result) == 3*2048+2+4
+    assert len(result.GetOnBits()) == 0
+
+
+def test_core_mof():
+    with open("coremof-mofid.txt") as f:
+        mofids = [i.split(';')[0] for i in f.read().splitlines()[1:]]
+        featurizer = MOFBits(mofids)
+        for mid in mofids:
+            featurizer.get_bvs_from_mofid(mid)

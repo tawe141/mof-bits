@@ -160,8 +160,14 @@ class MOFBits:
             return collective_fp(x, self._ohe, feature_name=feature_name)
 
     def _get_bvs(self, x: dict) -> List[ExplicitBitVect]:
-        bvs = [self._set_featurize(v, k) for k, v in x.items()]
-        return [b if b is not None else ExplicitBitVect(self.lengths[i]) for i, b in enumerate(bvs)]
+        # bvs = [self._set_featurize(v, k) for k, v in x.items()]
+        bvs = []
+        for i, (k, v) in enumerate(x.items()):
+            if v == set() or v is None or v == {'*'}:
+                bvs.append(ExplicitBitVect(self.lengths[i]))
+            else:
+                bvs.append(self._set_featurize(v, k))
+        return bvs
 
     def get_bvs_from_mofid(self, mofid: str):
         return self._get_bvs(process_mofid(mofid))
