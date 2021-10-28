@@ -1,5 +1,6 @@
 import pytest
 from mofbits.process import *
+import numpy as np
 
 
 @pytest.fixture
@@ -54,6 +55,20 @@ def test_process_mofid(hkust):
     }
 
 
+def test_concatenate_bv():
+    bv1 = ExplicitBitVect(8)
+    bv1.SetBitsFromList([0, 1])
+    bv2 = ExplicitBitVect(8)
+    bv2.SetBitsFromList([1, 2])
+    bv3 = ExplicitBitVect(10)
+    bv3.SetBit(9)
+
+    expected_bv = ExplicitBitVect(26)
+    expected_bv.SetBitsFromList([0, 1, 9, 10, 25])
+
+    assert concatenate_bvs([bv1, bv2, bv3]) == expected_bv
+
+
 def test_mofbits_set_featurize(featurizer, list_of_mofids):
     processed_mofids = [process_mofid(i) for i in list_of_mofids]
     # ordering of unique entries is random, so can only test length
@@ -77,9 +92,16 @@ def test_get_bvs_from_mofid(featurizer, hkust):
     assert len(result[4]) == 2048
 
 
+def test_lengths(featurizer):
+    assert featurizer.lengths == [2048, 2048, 2, 4, 2048]
+
+
 def test_get_full_bv(featurizer, hkust):
     result = featurizer.get_full_bv(hkust)
     assert len(result) == 3*2048+2+4
+    indices = np.cumsum(featurizer.lengths)
+    for a in np.split(result, indices)[:-1]:
+        assert np.any(a > 0)
 
 
 def test_null_mofid(featurizer, null_mofid):

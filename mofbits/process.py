@@ -128,6 +128,22 @@ def collective_fp(list_to_fp: Set[str], fingerprint_fn: Callable, **kwargs) -> E
     )
 
 
+def concatenate_bvs(list_of_bvs: List[ExplicitBitVect], current_bv=None):
+    if len(list_of_bvs) == 0 and current_bv is None:
+        raise RuntimeError('Tried to concatenate bitvects but no bitvects were given')
+    elif len(list_of_bvs) == 0:
+        return current_bv
+    elif current_bv is None:
+        current_bv = list_of_bvs.pop(0)
+        return concatenate_bvs(list_of_bvs, current_bv)
+    else:
+        new_bv = ExplicitBitVect(len(current_bv) + len(list_of_bvs[0]))
+        new_bv.SetBitsFromList(current_bv.GetOnBits())
+        next_bv = list_of_bvs.pop(0)
+        new_bv.SetBitsFromList([i+len(current_bv) for i in next_bv.GetOnBits()])
+        return concatenate_bvs(list_of_bvs, new_bv)
+
+
 class MOFBits:
 
     # these keys will go through a custom fingerprint operation; others will be one-hot encoded
@@ -175,17 +191,4 @@ class MOFBits:
         return self._get_bvs(process_mofid(mofid))
 
     def get_full_bv(self, mofid: str):
-        return self._to_bitvec(process_mofid(mofid))
-
-    def _to_bitvec(self, x: dict):
-        list_of_bvs = self._get_bvs(x)
-        # concatenate bitvecs together
-        lengths = [len(i) for i in list_of_bvs]
-        result = ExplicitBitVect(sum(lengths))
-        for i, bv in enumerate(list_of_bvs):
-            if i == 0:
-                offset = 0
-            else:
-                offset = lengths[i-1]
-            result.SetBitsFromList([j+offset for j in bv.GetOnBits()])
-        return result
+        return concatenate_bvs(self.get_bvs_from_mofid(mofid))
