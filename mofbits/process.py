@@ -140,6 +140,8 @@ class MOFBits:
         processed_mofids = [process_mofid(i) for i in tqdm.tqdm(list_of_mofids, desc='Processing MOFids', unit='ids')]
         self._keys = collect_set([i.keys() for i in processed_mofids])  # TODO: is this ordered?
         self._uniques = {k: collect_set([i[k] for i in processed_mofids]) for k in self._keys if k not in self._custom_fingerprint_funcs.keys()}
+        test_bv = self._get_bvs(processed_mofids[0])
+        self.lengths = [len(i) for i in test_bv]
 
         # self._cache = dict(zip(list_of_mofids, [self._to_bitvec()))
 
@@ -158,7 +160,8 @@ class MOFBits:
             return collective_fp(x, self._ohe, feature_name=feature_name)
 
     def _get_bvs(self, x: dict) -> List[ExplicitBitVect]:
-        return [self._set_featurize(v, k) for k, v in x.items()]
+        bvs = [self._set_featurize(v, k) for k, v in x.items()]
+        return [b if b is not None else ExplicitBitVect(self.lengths[i]) for i, b in enumerate(bvs)]
 
     def get_bvs_from_mofid(self, mofid: str):
         return self._get_bvs(process_mofid(mofid))
