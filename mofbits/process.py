@@ -91,6 +91,8 @@ def fp_smiles(s: str, **kwargs):
 
 
 def metal_node_fp(s: str):
+    if bool(re.match(r"^\[[A-Z][a-z]*\]$", s)):  # if matches to a single atom like [Fe]
+        s += "[Ne]"  # tack on another atom so there's an edge in the molecular graph to fingerprint
     return fp_smiles(s, maxPath=3)
 
 

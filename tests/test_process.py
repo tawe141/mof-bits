@@ -1,6 +1,6 @@
 import pytest
 from mofbits.process import *
-from rdkit.DataStructs.cDataStructs import ExplicitBitVect
+
 
 @pytest.fixture
 def hkust():
@@ -94,3 +94,13 @@ def test_core_mof():
         featurizer = MOFBits(mofids)
         for mid in mofids:
             featurizer.get_bvs_from_mofid(mid)
+
+
+def test_for_zeros_in_fp():
+    with open("coremof-mofid.txt") as f:
+        mofids = [i.split(';')[0] for i in f.read().splitlines()[1:]]
+        featurizer = MOFBits(mofids)
+        fe_mof74 = "[Fe].O=C([O-])c1cc([O-])c(C(=O)[O-])cc1[O-] MOFid-v1.ERROR.cat0"
+        bvs = featurizer.get_bvs_from_mofid(fe_mof74)
+        on_bits = [b.GetNumOnBits() for b in bvs]
+        assert all([i != 0 for i in on_bits])
