@@ -5,6 +5,9 @@ from rdkit.DataStructs.cDataStructs import ExplicitBitVect
 import tqdm
 import warnings
 import os
+from pymatgen.io.cif import CifParser
+from pathlib import Path
+import re
 
 
 #probably not the right way to do this, but...
@@ -145,16 +148,15 @@ def concatenate_bvs(list_of_bvs: List[ExplicitBitVect], current_bv=None):
 
 
 class MOFBits:
-
-    # these keys will go through a custom fingerprint operation; others will be one-hot encoded
-    _custom_fingerprint_funcs = {
-        'metal node types': metal_node_type_fp,
-        'metal nodes': metal_node_fp,
-        'organic linkers': fp_smiles
-    }
-    # _ohe_func = one_hot_fp
-
     def __init__(self, list_of_mofids: List[str]):
+        self.topology_bv_generator = TopologyBVGenerator('template_database')
+        # these keys will go through a custom fingerprint operation; others will be one-hot encoded
+        self._custom_fingerprint_funcs = {
+            'metal node types': metal_node_type_fp,
+            'metal nodes': metal_node_fp,
+            'topology': self.topology_bv_generator.get_bv,
+            'organic linkers': fp_smiles
+        }
         processed_mofids = [process_mofid(i) for i in tqdm.tqdm(list_of_mofids, desc='Processing MOFids', unit='ids')]
         self._keys = collect_set([i.keys() for i in processed_mofids])  # TODO: is this ordered?
         self._uniques = {k: collect_set([i[k] for i in processed_mofids]) for k in self._keys if k not in self._custom_fingerprint_funcs.keys()}
@@ -192,3 +194,61 @@ class MOFBits:
 
     def get_full_bv(self, mofid: str):
         return concatenate_bvs(self.get_bvs_from_mofid(mofid))
+
+
+class TopologyBVGenerator:
+    def __init__(self, root: str):
+        self.root = root
+        self._cache = dict()
+
+    @staticmethod
+    def _cif_to_mol(cif: CifParser, topology_name: str):
+        site_labels = cif._cif.data[topology_name].data['_atom_site_label']
+        elements = [re.search(r'^[a-zA-Z]+', i).group(0) for i in site_labels]
+
+        mol = Chem.RWMol()
+        for element in elements:
+            mol.AddAtom(Chem.Atom(element))
+        edge_from = [
+            site_labels.index(i)
+            for i in
+            cif._cif.data[topology_name].data['_geom_bond_atom_site_label_1']
+        ]
+        edge_to = [
+            site_labels.index(i)
+            for i in
+            cif._cif.data[topology_name].data['_geom_bond_atom_site_label_2']
+        ]
+
+        bond_record = []
+        for a, b in zip(edge_from, edge_to):
+            if [a, b] not in bond_record and [b, a] not in bond_record:
+                mol.AddBond(a, b)
+                bond_record.append([a, b])
+
+        return mol
+
+    def _process_cif(self, cif_path: str):
+        """
+        Takes a cif path and generates a fingerprint. If it cannot find the cif path, returns an empty bit vector
+        """
+        if not os.path.isfile(cif_path):
+            warnings.warn('Cif path %s was not found.' % cif_path)
+            return ExplicitBitVect(2048)
+        topology_name = Path(cif_path).stem
+        cif = CifParser(cif_path)
+        mol = self._cif_to_mol(cif, topology_name)
+        fp = Chem.RDKFingerprint(mol)
+        return fp
+
+    def get_bv(self, topology: str):
+        topology = ''.join([i for i in topology if i != '-'])
+
+        if topology in ('UNKNOWN', 'TIMEOUT', 'ERROR'):
+            return ExplicitBitVect(2048)
+        if topology in self._cache:
+            return self._cache[topology]
+        else:
+            fp = self._process_cif(self.root + '/' + topology + '.cif')
+            self._cache[topology] = fp
+            return fp

@@ -87,18 +87,18 @@ def test_get_bvs_from_mofid(featurizer, hkust):
     result = featurizer.get_bvs_from_mofid(hkust)
     assert len(result[0]) == 2048
     assert len(result[1]) == 2048
-    assert len(result[2]) == 2
+    assert len(result[2]) == 2048
     assert len(result[3]) == 4
     assert len(result[4]) == 2048
 
 
 def test_lengths(featurizer):
-    assert featurizer.lengths == [2048, 2048, 2, 4, 2048]
+    assert featurizer.lengths == [2048, 2048, 2048, 4, 2048]
 
 
 def test_get_full_bv(featurizer, hkust):
     result = featurizer.get_full_bv(hkust)
-    assert len(result) == 3*2048+2+4
+    assert len(result) == 4*2048+4
     indices = np.cumsum(featurizer.lengths)
     for a in np.split(result, indices)[:-1]:
         assert np.any(a > 0)
@@ -106,7 +106,7 @@ def test_get_full_bv(featurizer, hkust):
 
 def test_null_mofid(featurizer, null_mofid):
     result = featurizer.get_full_bv(null_mofid)
-    assert len(result) == 3*2048+2+4
+    assert len(result) == 4*2048+4
     assert len(result.GetOnBits()) == 0
 
 
@@ -125,4 +125,20 @@ def test_for_zeros_in_fp():
         fe_mof74 = "[Fe].O=C([O-])c1cc([O-])c(C(=O)[O-])cc1[O-] MOFid-v1.ERROR.cat0"
         bvs = featurizer.get_bvs_from_mofid(fe_mof74)
         on_bits = [b.GetNumOnBits() for b in bvs]
-        assert all([i != 0 for i in on_bits])
+        assert [i != 0 for i in on_bits] == [True, True, False, True, True]
+
+
+def test_topology_generator():
+    # test cif to mol first
+    top = TopologyBVGenerator('tests')
+    cif = CifParser('tests/abr.cif')
+    mol = top._cif_to_mol(cif, 'abr')
+    assert len(mol.GetAtoms()) == 14
+    assert len(mol.GetBonds()) <= 44
+
+    fp = top._process_cif('tests/abr.cif')
+    assert fp.GetNumOnBits() > 0
+
+    fp2 = top.get_bv('abr')
+    assert fp == fp2
+    assert 'abr' in top._cache

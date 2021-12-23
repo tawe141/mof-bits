@@ -20,3 +20,7 @@ Bit vectors are simply vectors of zeros and ones. We use RDKit's implementation 
 ## Installation
 
 Clone this repo into a directory of your choice, navigate to it, and do `pip install .`
+
+## Acknowledgements
+
+Thanks to the developers of [tobacco_3.0](https://github.com/tobacco-mofs/tobacco_3.0) for releasing their topology files! Fingerprinting topologies otherwise would've been much more difficult.
