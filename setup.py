@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name='mof-bits',
-    version='0.1.0',
+    version='0.2.0',
     description='A way to represent MOFs with bit vectors',
     url='https://github.com/tawe141/mof-bits',
     author='Eric Taw',
@@ -13,6 +13,7 @@ setup(
         # 'rdkit',
         'tqdm'
     ],
+    include_package_data=True,
     classifiers=[
         'Programming Language :: Python :: 3.7',
         'Intended Audience :: Science/Research',

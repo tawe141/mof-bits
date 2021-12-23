@@ -2,3 +2,4 @@
 .idea
 *.egg-info
 __pycache__
+template_database

@@ -8,9 +8,11 @@ import os
 from pymatgen.io.cif import CifParser
 from pathlib import Path
 import re
+import sqlite3
 
 
-#probably not the right way to do this, but...
+# probably not the right way to do this, but...
+# TODO: probably best to use importlib.resources here, but this works
 _script_dir = os.path.dirname(__file__)
 metals = open(_script_dir+'/metals.txt').read().splitlines()
 halides = ['F', 'Cl', 'Br', 'I']
@@ -149,7 +151,7 @@ def concatenate_bvs(list_of_bvs: List[ExplicitBitVect], current_bv=None):
 
 class MOFBits:
     def __init__(self, list_of_mofids: List[str]):
-        self.topology_bv_generator = TopologyBVGenerator('template_database')
+        self.topology_bv_generator = TopologyBVGenerator()
         # these keys will go through a custom fingerprint operation; others will be one-hot encoded
         self._custom_fingerprint_funcs = {
             'metal node types': metal_node_type_fp,
@@ -197,8 +199,8 @@ class MOFBits:
 
 
 class TopologyBVGenerator:
-    def __init__(self, root: str):
-        self.root = root
+    def __init__(self):
+        self.conn = sqlite3.connect(os.path.dirname(__file__) + '/template.db')
         self._cache = dict()
 
     @staticmethod
@@ -228,16 +230,15 @@ class TopologyBVGenerator:
 
         return mol
 
-    def _process_cif(self, cif_path: str):
+    def _process_cif(self, top: str):
         """
         Takes a cif path and generates a fingerprint. If it cannot find the cif path, returns an empty bit vector
         """
-        if not os.path.isfile(cif_path):
-            warnings.warn('Cif path %s was not found.' % cif_path)
+        cif_str = self.conn.cursor().execute('select cif from topology where top=?', (top,)).fetchone()
+        if cif_str is None:
             return ExplicitBitVect(2048)
-        topology_name = Path(cif_path).stem
-        cif = CifParser(cif_path)
-        mol = self._cif_to_mol(cif, topology_name)
+        cif = CifParser.from_string(cif_str[0])
+        mol = self._cif_to_mol(cif, top)
         fp = Chem.RDKFingerprint(mol)
         return fp
 
@@ -246,9 +247,9 @@ class TopologyBVGenerator:
 
         if topology in ('UNKNOWN', 'TIMEOUT', 'ERROR'):
             return ExplicitBitVect(2048)
-        if topology in self._cache:
+        elif topology in self._cache:
             return self._cache[topology]
         else:
-            fp = self._process_cif(self.root + '/' + topology + '.cif')
+            fp = self._process_cif(topology)
             self._cache[topology] = fp
             return fp

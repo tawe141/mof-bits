@@ -130,13 +130,13 @@ def test_for_zeros_in_fp():
 
 def test_topology_generator():
     # test cif to mol first
-    top = TopologyBVGenerator('tests')
+    top = TopologyBVGenerator()
     cif = CifParser('tests/abr.cif')
     mol = top._cif_to_mol(cif, 'abr')
     assert len(mol.GetAtoms()) == 14
     assert len(mol.GetBonds()) <= 44
 
-    fp = top._process_cif('tests/abr.cif')
+    fp = top._process_cif('abr')
     assert fp.GetNumOnBits() > 0
 
     fp2 = top.get_bv('abr')
